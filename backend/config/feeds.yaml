@@ -1,0 +1,77 @@
+# RSS / Atom feeds read by app/ingest/news.py. Edit freely - one entry per feed.
+#
+#   name            shown as NewsItem.source
+#   url             feed URL (free, keyless)
+#   kind            central_bank | news   (scoring may weight central_bank higher)
+#   default_region  optional home region of the feed (US EZ JP UK AU CA NZ CN CH).
+#                   central_bank feeds: every item is tagged with it.
+#                   news feeds: used only when the text names no region AND a
+#                   directional rule fired (e.g. CNBC "Consumer prices rose 0.4%").
+#   title_only      true = ignore the feed's summary (Google News summaries are link lists)
+#   max_items       optional cap per run (default: settings.max_items_per_feed)
+#   enabled         false = skip
+#
+# All feeds below returned fresh entries on 2026-11-10. Rejected feeds and why:
+# docs/sources/news_calendar.md.
+
+settings:
+  max_age_days: 60
+  max_items_per_feed: 60
+  summary_max_chars: 500
+  timeout_seconds: 20
+  user_agent: "fx-dashboard/1.0 (personal local dashboard; RSS reader)"
+
+feeds:
+  # ---------------------------------------------------------------- central banks
+  - {name: "Federal Reserve - press releases", url: "https://www.federalreserve.gov/feeds/press_all.xml", kind: central_bank, default_region: US}
+  - {name: "Federal Reserve - speeches", url: "https://www.federalreserve.gov/feeds/speeches.xml", kind: central_bank, default_region: US}
+  - {name: "ECB - press, speeches, interviews", url: "https://www.ecb.europa.eu/rss/press.html", kind: central_bank, default_region: EZ}
+  - {name: "ECB - blog", url: "https://www.ecb.europa.eu/rss/blog.html", kind: central_bank, default_region: EZ}
+  - {name: "Bank of England - news", url: "https://www.bankofengland.co.uk/rss/news", kind: central_bank, default_region: UK}
+  - {name: "Bank of England - speeches", url: "https://www.bankofengland.co.uk/rss/speeches", kind: central_bank, default_region: UK}
+  - {name: "Bank of Japan - what's new", url: "https://www.boj.or.jp/en/rss/whatsnew.xml", kind: central_bank, default_region: JP}
+  - {name: "RBA - media releases", url: "https://www.rba.gov.au/rss/rss-cb-media-releases.xml", kind: central_bank, default_region: AU}
+  - {name: "RBA - speeches", url: "https://www.rba.gov.au/rss/rss-cb-speeches.xml", kind: central_bank, default_region: AU}
+  - {name: "Bank of Canada - press releases", url: "https://www.bankofcanada.ca/content_type/press-releases/feed/", kind: central_bank, default_region: CA}
+  - {name: "Bank of Canada - speeches", url: "https://www.bankofcanada.ca/content_type/speeches/feed/", kind: central_bank, default_region: CA}
+  - {name: "RBNZ - news", url: "https://www.rbnz.govt.nz/feeds/news", kind: central_bank, default_region: NZ}
+  - {name: "SNB - news", url: "https://www.snb.ch/public/en/rss/news", kind: central_bank, default_region: CH}
+  - {name: "SNB - press releases", url: "https://www.snb.ch/public/en/rss/pressrel", kind: central_bank, default_region: CH}
+  # No English PBoC feed exists; BIS republishes central bankers' speeches from all banks (incl. PBoC).
+  - {name: "BIS - central bankers' speeches", url: "https://www.bis.org/doclist/cbspeeches.rss", kind: central_bank}
+
+  # ---------------------------------------------------------------- FX / macro news
+  - {name: "investingLive (ex-ForexLive) - news", url: "https://investinglive.com/feed/news", kind: news}
+  - {name: "investingLive - central banks", url: "https://investinglive.com/feed/centralbank", kind: news}
+  - {name: "investingLive - forex", url: "https://investinglive.com/feed/forex", kind: news}
+  - {name: "Investing.com - forex news", url: "https://www.investing.com/rss/news_1.rss", kind: news}
+  - {name: "Investing.com - economic indicators", url: "https://www.investing.com/rss/news_95.rss", kind: news}
+  - {name: "Investing.com - economy", url: "https://www.investing.com/rss/news_14.rss", kind: news}
+  - {name: "Nasdaq / RTTNews - currencies", url: "https://www.nasdaq.com/feed/rssoutbound?category=Currencies", kind: news}
+  - {name: "ActionForex", url: "https://www.actionforex.com/feed/", kind: news}
+  - {name: "CNBC - economy", url: "https://www.cnbc.com/id/20910258/device/rss/rss.html", kind: news, default_region: US}
+  - {name: "CNBC - top news", url: "https://www.cnbc.com/id/100003114/device/rss/rss.html", kind: news, default_region: US}
+  - {name: "CNBC - finance", url: "https://www.cnbc.com/id/10000664/device/rss/rss.html", kind: news, default_region: US}
+  - {name: "MarketWatch - top stories", url: "https://feeds.content.dowjones.io/public/rss/mw_topstories", kind: news, default_region: US}
+  - {name: "WSJ - markets", url: "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain", kind: news, default_region: US}
+  - {name: "WSJ - economy", url: "https://feeds.content.dowjones.io/public/rss/socialeconomyfeed", kind: news}
+  - {name: "FT - markets", url: "https://www.ft.com/markets?format=rss", kind: news}
+  - {name: "BBC - business", url: "https://feeds.bbci.co.uk/news/business/rss.xml", kind: news, default_region: UK}
+  - {name: "BBC - economy", url: "https://feeds.bbci.co.uk/news/business/economy/rss.xml", kind: news, default_region: UK}
+  - {name: "Guardian - economics", url: "https://www.theguardian.com/business/economics/rss", kind: news, default_region: UK}
+  - {name: "Nikkei Asia", url: "https://asia.nikkei.com/rss/feed/nar", kind: news}   # no dates in feed: first-seen time is used
+  - {name: "Japan Times", url: "https://www.japantimes.co.jp/feed/", kind: news}
+  - {name: "ABC Australia - business", url: "https://www.abc.net.au/news/feed/51892/rss.xml", kind: news, default_region: AU}
+  - {name: "RNZ - business", url: "https://www.rnz.co.nz/rss/business.xml", kind: news, default_region: NZ}
+  - {name: "CBC - business", url: "https://www.cbc.ca/webfeed/rss/rss-business", kind: news, default_region: CA}
+  - {name: "SCMP - China economy", url: "https://www.scmp.com/rss/318421/feed", kind: news, default_region: CN}
+
+  # ---------------------------------------------------------------- Google News queries (robust fallback, thin regions)
+  - {name: "Google News - EUR", url: "https://news.google.com/rss/search?q=ECB+OR+%22euro+zone+economy%22+OR+%22euro+area+inflation%22+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - JPY", url: "https://news.google.com/rss/search?q=%22Bank+of+Japan%22+OR+%22yen%22+forex+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - GBP", url: "https://news.google.com/rss/search?q=%22Bank+of+England%22+OR+%22pound+sterling%22+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - AUD", url: "https://news.google.com/rss/search?q=%22Australian+dollar%22+OR+RBA+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - CAD", url: "https://news.google.com/rss/search?q=%22Canadian+dollar%22+OR+%22Bank+of+Canada%22+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - NZD", url: "https://news.google.com/rss/search?q=%22New+Zealand+dollar%22+OR+RBNZ+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - CNY", url: "https://news.google.com/rss/search?q=PBOC+OR+yuan+OR+%22China+economy%22+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}
+  - {name: "Google News - CHF", url: "https://news.google.com/rss/search?q=%22Swiss+franc%22+OR+%22Swiss+National+Bank%22+when:3d&hl=en-US&gl=US&ceid=US:en", kind: news, title_only: true, max_items: 30}

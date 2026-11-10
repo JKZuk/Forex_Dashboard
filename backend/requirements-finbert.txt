@@ -1,0 +1,7 @@
+# Optional: local FinBERT tone model (set SENTIMENT_ENGINE=finbert in .env).
+# Heavy (~2 GB with torch); NOT needed for the default lexicon engine.
+#   backend/.venv/bin/pip install -r backend/requirements-finbert.txt
+# The model (ProsusAI/finbert, ~440 MB) is downloaded once from Hugging Face on
+# first use and then runs fully offline on CPU.
+torch>=2.2
+transformers>=4.40

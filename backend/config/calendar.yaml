@@ -1,0 +1,99 @@
+# Economic calendar configuration for app/ingest/calendar.py.
+
+settings:
+  lookback_days: 14          # keep recent events this far back
+  lookahead_days: 42         # and upcoming events this far ahead
+  min_impact: medium         # high | medium | low  (events below this are not stored)
+  timeout_seconds: 25
+  user_agent: "fx-dashboard/1.0 (personal local dashboard; calendar reader)"
+  forexfactory_min_interval_minutes: 60   # the export is rate-limited: never fetch more often
+  sources:                   # set to false to switch a source off
+    forexfactory: true       # current week, all currencies, impact + forecast + previous
+    myfxbook_actuals: true   # today's actual values, merged into the ForexFactory rows
+    central_banks: true      # static meeting schedule below
+    bea: true                # US GDP, PCE / personal income, trade (official JSON schedule)
+    census: true             # US retail sales, durable goods (official schedule page)
+    eurostat: true           # euro area HICP flash/final, GDP, unemployment (official iCal)
+    ons: true                # UK CPI, labour market, GDP, retail sales (official release API)
+    fred: true               # only used when FRED_API_KEY is set; replaces bea/census/nfp_rule
+    nfp_rule: true           # APPROXIMATE first-Friday US payrolls dates (BLS blocks scripts)
+
+# Central bank rate-decision dates (decision / announcement day, local date).
+# Compiled 2026-11-10 from each bank's own published schedule (verified_from).
+# `dates` were read from that page on that day; `unverified_dates` could NOT be
+# confirmed there (from memory / secondary evidence) and are labelled as such in
+# the calendar. `time` is the usual local announcement time (omit = time unknown).
+# Schedules do change (FOMC 2027 is explicitly "tentative"): re-check once a year.
+central_banks:
+  - bank: Federal Reserve (FOMC)
+    region: US
+    title: "FOMC rate decision"
+    time: "14:00"
+    tz: America/New_York
+    verified_from: https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm
+    note: "2027 dates are tentative until confirmed at the preceding meeting."
+    dates: [2026-01-28, 2026-03-18, 2026-04-29, 2026-06-17, 2026-07-29, 2026-09-16, 2026-10-28, 2026-12-09,
+            2027-01-27, 2027-03-17, 2027-04-28, 2027-06-09, 2027-07-28, 2027-09-15, 2027-10-27, 2027-12-08]
+  - bank: European Central Bank
+    region: EZ
+    title: "ECB rate decision"
+    time: "14:15"
+    tz: Europe/Berlin
+    verified_from: https://www.ecb.europa.eu/press/calendars/mgcgc/html/index.en.html
+    note: "The ECB page only lists upcoming meetings; 2026 dates before 29 Oct could not be re-verified."
+    dates: [2026-10-29, 2026-12-17,
+            2027-02-04, 2027-03-18, 2027-04-29, 2027-06-10, 2027-07-22, 2027-09-09, 2027-10-28, 2027-12-16]
+    unverified_dates: [2026-02-05, 2026-03-19, 2026-04-30, 2026-06-11, 2026-07-23, 2026-09-10]
+  - bank: Bank of England (MPC)
+    region: UK
+    title: "BoE rate decision"
+    time: "12:00"
+    tz: Europe/London
+    verified_from: https://www.bankofengland.co.uk/monetary-policy/upcoming-mpc-dates
+    dates: [2026-02-05, 2026-03-19, 2026-04-30, 2026-06-18, 2026-07-30, 2026-09-17, 2026-11-05, 2026-12-17,
+            2027-02-04, 2027-03-18, 2027-04-29, 2027-06-17, 2027-07-29, 2027-09-16, 2027-11-04, 2027-12-16]
+  - bank: Bank of Japan
+    region: JP
+    title: "BoJ rate decision"
+    # no fixed announcement time (usually 02:30-04:00 UTC on day 2)
+    tz: Asia/Tokyo
+    verified_from: https://www.boj.or.jp/en/mopo/mpmsche_minu/index.htm
+    dates: [2026-01-23, 2026-03-19, 2026-04-28, 2026-06-16, 2026-07-31, 2026-09-18, 2026-10-30, 2026-12-18,
+            2027-01-22, 2027-03-18, 2027-04-28, 2027-06-11, 2027-07-22, 2027-09-22, 2027-10-29, 2027-12-17]
+  - bank: Reserve Bank of Australia
+    region: AU
+    title: "RBA rate decision"
+    time: "14:30"
+    tz: Australia/Sydney
+    verified_from: https://www.rba.gov.au/schedules-events/board-meeting-schedules.html
+    dates: [2026-02-03, 2026-03-17, 2026-05-05, 2026-06-16, 2026-08-11, 2026-09-29, 2026-11-03, 2026-12-08,
+            2027-02-09, 2027-03-23, 2027-05-04, 2027-06-22, 2027-08-10, 2027-09-28, 2027-11-02, 2027-12-14]
+  - bank: Bank of Canada
+    region: CA
+    title: "BoC rate decision"
+    time: "09:45"
+    tz: America/Toronto
+    verified_from: https://www.bankofcanada.ca/core-functions/monetary-policy/key-interest-rate/
+    dates: [2026-01-28, 2026-03-18, 2026-04-29, 2026-06-10, 2026-07-15, 2026-09-02, 2026-10-28, 2026-12-09,
+            2027-01-27, 2027-03-03, 2027-04-28, 2027-06-02, 2027-07-21, 2027-09-08, 2027-10-27, 2027-12-08]
+  - bank: Reserve Bank of New Zealand
+    region: NZ
+    title: "RBNZ OCR decision"
+    time: "14:00"
+    tz: Pacific/Auckland
+    verified_from: https://www.rbnz.govt.nz/feeds/news
+    note: >-
+      rbnz.govt.nz blocks scripted access to its schedule page. The 2026 dates in `dates` were confirmed
+      from the OCR decision releases in the RBNZ's own news feed. 2026-02-18 and 2026-12-09 are from memory
+      of the published schedule and NOT verified; the 2027 schedule could not be retrieved - add it here.
+    dates: [2026-04-08, 2026-05-27, 2026-07-08, 2026-09-02, 2026-10-28]
+    unverified_dates: [2026-02-18, 2026-12-09]
+  - bank: Swiss National Bank
+    region: CH
+    title: "SNB rate decision"
+    time: "09:30"
+    tz: Europe/Zurich
+    verified_from: https://www.snb.ch/en/services-events/digital-services/event-schedule
+    note: "The SNB schedule only lists upcoming events; 2026 dates before December could not be re-verified."
+    dates: [2026-12-10, 2027-03-18, 2027-06-24, 2027-09-23, 2027-12-16]
+    unverified_dates: [2026-03-19, 2026-06-18, 2026-09-24]

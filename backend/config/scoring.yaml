@@ -1,0 +1,291 @@
+# =============================================================================
+# Scoring configuration - the ONLY file you need to edit to tune the scores.
+# Methodology: docs/SCORING.md.  Changes take effect on the next scoring run
+# (`python -m app.cli score`, or any refresh); no restart needed.
+#
+# score(region, horizon) = 100 * sum_i( weight_i / sum(weights with data) * signal_i )
+#   signal_i in [-1, +1]  (+1 = bullish for the region's currency)
+#   components with no data drop out; coverage = share of weight that had data
+#
+# "scale" parameters: the raw reading at which the signal reaches tanh(1) = 0.76.
+# Smaller scale = more aggressive signal. Weights need not sum to 1.
+# =============================================================================
+version: 1
+
+labels:
+  strong_bullish: 50      # score >= 50
+  bullish: 20             # score >= 20
+  bearish: -20            # score <= -20   (between -20 and +20 = Neutral)
+  strong_bearish: -50     # score <= -50
+  no_data: "No Data"      # label when no component had data (coverage 0)
+
+general:
+  # Regions never used as a PEER when measuring others (they are still scored
+  # against everyone else). China's levels (growth, rates) are structurally
+  # different and CNY is managed, so it would distort G10 averages.
+  peer_exclude: [CN]
+  min_peers: 2            # need at least this many peers with data for a relative reading
+
+  # Point-in-time rule for HISTORICAL dates (backfill): an observation with
+  # reference date D only becomes "known" on D + lag days. For today's run
+  # everything in the database is used. Assumes obs_date = START of the
+  # reference period (FRED convention).
+  publication_lag_days: {D: 0, W: 5, M: 40, Q: 125, A: 455}
+  # Market-determined monthly averages are known at month end, not weeks later.
+  publication_lag_by_indicator:
+    YIELD_2Y: {M: 31}
+    YIELD_10Y: {M: 31}
+    POLICY_RATE: {M: 31}
+    COPPER: {M: 35}
+  cot_lag_days: 3         # CFTC: Tuesday positions published Friday
+  # A series whose latest observation is older than this (days since its
+  # reference date) is treated as missing rather than carried forward forever.
+  max_stale_days: {D: 14, W: 35, M: 150, Q: 320, A: 900}
+
+  # Thin-evidence guard. Missing components drop out and the remaining weights
+  # are renormalised; but when coverage falls below this share the score is
+  # additionally scaled by coverage / threshold, so a single surviving component
+  # cannot produce a "Strong" reading on its own. Set to 0 to disable.
+  coverage_shrink_below: 0.5
+
+  # Inflation measure used for real rates / inflation gap: first available.
+  inflation_preference: [CORE_CPI_YOY, CPI_YOY]
+  inflation_target: {default: 2.0, CN: 3.0, AU: 2.5}
+
+  # FX momentum is measured against an equal-weight basket of the other
+  # currencies (so EURUSD rising on pure dollar weakness is not "EUR strength").
+  fx_basket_min_members: 3
+
+conclusions:
+  low_coverage: 0.6       # flag a horizon whose coverage is below this
+  driver_min_points: 3.0  # a component must move the score this much to be named
+  drivers_each_side: 2
+  divergence_spread: 40   # horizons this far apart are called out as conflicting
+
+backfill:
+  store_detail: all       # all | latest : keep components + conclusions for every backfilled date, or only the last
+
+# -----------------------------------------------------------------------------
+# Per-currency sensitivity to global risk appetite (+ = gains in risk-on).
+# -----------------------------------------------------------------------------
+risk_beta:
+  JPY: -1.0
+  CHF: -0.8
+  USD: -0.5
+  AUD: 1.0
+  NZD: 0.9
+  CAD: 0.6
+  GBP: 0.35
+  EUR: 0.2
+  CNY: 0.3
+
+# -----------------------------------------------------------------------------
+# Shared settings of the data-surprise engine (used by short + medium).
+# -----------------------------------------------------------------------------
+surprise:
+  impact_weight: {1: 1.0, 2: 2.0, 3: 3.5}   # catalog impact -> weight
+  exclude: [YIELD_2Y, YIELD_10Y]            # market prices, not releases
+  # "level" indicators are noisy flows: surprise = latest vs mean of previous k.
+  # All others: surprise = latest CHANGE vs mean of previous k changes.
+  level_mode: [EMPLOYMENT_CHG, JOBLESS_CLAIMS, TRADE_BALANCE]
+  # Step-like series: surprise = the change itself (a hike/cut is the news).
+  raw_change: [POLICY_RATE]
+  # Minimum standard deviation used to standardise (in the series' unit), so a
+  # first move after a long flat stretch is not divided by ~zero.
+  sd_floor: {POLICY_RATE: 0.15}
+  trend_obs: 3            # k
+  vol_obs: 36             # history used to standardise (observations)
+  min_history: 12
+  z_clip: 3.0
+  # Calendar actual-vs-forecast (used when the calendar feed provides both).
+  calendar_impact_weight: {high: 3.5, medium: 2.0, low: 1.0}
+  calendar_z: 1.5         # sigma-equivalent of a clear beat/miss
+  # Calendar titles containing these words are bearish when ABOVE forecast.
+  calendar_lower_is_bullish: [unemployment, jobless, claims]
+
+# -----------------------------------------------------------------------------
+# Global risk appetite gauge (shared; mapped through risk_beta per currency).
+# -----------------------------------------------------------------------------
+risk_gauge:
+  weights: {vix: 0.35, spx: 0.25, hy_spread: 0.20, news: 0.20}
+  history_days: 365       # window for level z-scores and volatility
+  vix_change_days: 7
+  spx_lookbacks: [{days: 7, weight: 0.5}, {days: 30, weight: 0.5}]
+  hy_change_days: 30
+  z_scale: 1.25
+  news_lookback_days: 5
+  news_half_life_days: 2
+  news_scale: 0.25
+
+# -----------------------------------------------------------------------------
+# China activity gauge (CN series, z-scored vs own history) - feeds the
+# commodity_china component of AUD / NZD (and lightly JPY / EUR).
+# -----------------------------------------------------------------------------
+china_activity:
+  indicators: {PMI: 3, INDUSTRIAL_PROD_YOY: 2, RETAIL_SALES_YOY: 2, IMPORTS_YOY: 2, EXPORTS_YOY: 1, GDP_YOY: 1}
+  recent_days: 92
+  base_days: 365
+  vol_days: 1825
+  z_scale: 1.0
+
+# =============================================================================
+# HORIZONS. Each component: kind (implementation), weight, label, parameters.
+# Remove a component or set weight 0 to switch it off.
+# =============================================================================
+horizons:
+
+  # ---------------------------------------------------------------- SHORT ----
+  short:   # hours to days
+    components:
+      data_surprise:
+        kind: data_surprise
+        label: "Data surprises (last 4 weeks)"
+        weight: 0.30
+        window_days: 28
+        half_life_days: 10
+        prior_weight: 3.0     # shrinkage: one lone release cannot max the signal
+        z_scale: 0.6
+      news_sentiment:
+        kind: news_sentiment
+        label: "News & central-bank tone (last week)"
+        weight: 0.20
+        lookback_days: 7
+        half_life_days: 2
+        central_bank_weight: 2.5
+        shrink_items: 3.0     # effective items needed before the tone is trusted
+        scale: 0.25
+      price_momentum:
+        kind: price_momentum
+        label: "Short-term price momentum (1w / 1m)"
+        weight: 0.25
+        lookbacks: [{days: 7, weight: 0.5}, {days: 30, weight: 0.5}]
+        vol_days: 365
+        z_scale: 1.25
+      risk_sentiment:
+        kind: risk_sentiment
+        label: "Global risk sentiment (via currency risk beta)"
+        weight: 0.25
+
+  # --------------------------------------------------------------- MEDIUM ----
+  medium:  # weeks to ~2 months
+    components:
+      yield_differential:
+        kind: yield_differential
+        label: "Yield differential vs peers (2Y, 10Y)"
+        weight: 0.25
+        change_days: 63
+        level_scale: 1.5      # pp
+        change_scale: 0.4     # pp
+        mix: {level_2y: 0.45, change_2y: 0.35, level_10y: 0.10, change_10y: 0.10}
+      data_surprise:
+        kind: data_surprise
+        label: "Cumulative data surprises (3 months)"
+        weight: 0.20
+        window_days: 92
+        half_life_days: 45
+        prior_weight: 6.0
+        z_scale: 0.5
+      cot_positioning:
+        kind: cot_positioning
+        label: "Speculative positioning (COT)"
+        weight: 0.15
+        trend_weeks: [4, 13]
+        trend_scale: 10.0     # pp of open interest
+        percentile_weeks: 156
+        min_percentile_weeks: 52
+        extreme_high: 0.85    # above this percentile = crowded long (contrarian bearish)
+        extreme_low: 0.15
+        trend_weight: 0.6
+        extreme_weight: 0.4
+        crowding_damp: 0.5    # trend that pushes further INTO an extreme is cut by this x extremeness
+      price_momentum:
+        kind: price_momentum
+        label: "Medium-term price momentum (3m / 6m)"
+        weight: 0.15
+        lookbacks: [{days: 91, weight: 0.5}, {days: 182, weight: 0.5}]
+        vol_days: 365
+        z_scale: 1.25
+      trade_balance:
+        kind: trade_trend
+        label: "Trade balance trend (3m vs prior year)"
+        weight: 0.10
+        trade_sensitive_multiplier: 1.75   # JP + commodity bloc + CN
+        recent_days: 92
+        base_days: 365
+        vol_days: 1095
+        z_scale: 1.0
+        exports_weight: 0.3   # share given to exports y/y vs peers
+        exports_scale: 10.0   # pp
+      commodity_china:
+        kind: commodity_china
+        label: "Commodity prices & China activity"
+        weight: 0.15
+        lookbacks: [{days: 91, weight: 0.6}, {days: 182, weight: 0.4}]
+        vol_days: 365
+        z_scale: 1.25
+        # Only the regions listed here get this component. exposures: driver ->
+        # sensitivity (negative = hurt by higher prices). BROAD = mean of oil,
+        # copper and gold. weight_mult scales the component weight for the region.
+        regions:
+          CA: {weight_mult: 1.0, exposures: {OIL: 1.0}}
+          AU: {weight_mult: 1.0, exposures: {COPPER: 0.5, CHINA: 0.5}}
+          NZ: {weight_mult: 1.0, exposures: {BROAD: 0.6, CHINA: 0.4}}
+          JP: {weight_mult: 0.4, exposures: {OIL: -0.6, CHINA: 0.4}}
+          EZ: {weight_mult: 0.4, exposures: {OIL: -0.4, CHINA: 0.6}}
+
+  # ----------------------------------------------------------------- LONG ----
+  long:    # months to years
+    components:
+      real_rate_differential:
+        kind: real_rate_differential
+        label: "Real rate differential vs peers"
+        weight: 0.25
+        scale: 1.5            # pp
+        mix: {policy: 0.5, yield_10y: 0.5}
+      policy_trajectory:
+        kind: policy_trajectory
+        label: "Policy trajectory (12m rate change, inflation gap)"
+        weight: 0.20
+        change_days: 365
+        change_scale: 1.0     # pp
+        gap_scale: 1.0        # pp
+        mix: {rate_change: 0.6, inflation_gap: 0.4}
+      growth_differential:
+        kind: growth_differential
+        label: "Growth differential (GDP y/y vs peers)"
+        weight: 0.15
+        level_scale: 1.5      # pp
+        own_history_obs: 20   # ~5 years of quarters
+        own_scale: 1.0
+        mix: {level: 0.6, vs_own_history: 0.4}
+      current_account:
+        kind: current_account
+        label: "Current account (% of GDP)"
+        weight: 0.15
+        level_scale: 4.0      # pp of GDP
+        change_days: 730
+        change_scale: 2.0
+        mix: {level: 0.7, change: 0.3}
+      trade_balance:
+        kind: trade_trend
+        label: "Structural trade balance trend (1y vs prior 2y)"
+        weight: 0.10
+        trade_sensitive_multiplier: 1.75
+        recent_days: 365
+        base_days: 730
+        vol_days: 1825
+        z_scale: 1.0
+        exports_weight: 0.0
+        exports_scale: 10.0
+      trend_valuation:
+        kind: price_momentum
+        label: "12-month price trend & valuation (vs 5y average)"
+        weight: 0.15
+        lookbacks: [{days: 365, weight: 1.0}]
+        vol_days: 730
+        z_scale: 1.0
+        mean_reversion:       # small contrarian tilt when far from the 5y average
+          weight: 0.25
+          window_days: 1825
+          min_days: 1095
+          z_scale: 2.0
